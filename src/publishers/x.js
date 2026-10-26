@@ -47,6 +47,7 @@ export default {
   label: 'X (Twitter)',
   limit: 280,
   supportsImage: false,
+  supportsVideo: false,
   count,
   fields: [
     { key: 'api_key', label: 'API key (consumer key)', help: 'From developer.x.com → your app → Keys and tokens. The app needs Read and Write permission.' },

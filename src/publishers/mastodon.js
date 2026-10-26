@@ -1,4 +1,4 @@
-import { request, fetchImage, PublishError } from './http.js';
+import { request, fetchMedia, isVideoUrl, PublishError } from './http.js';
 
 function base(creds) {
   let url = (creds.instance || '').trim().replace(/\/$/, '');
@@ -11,15 +11,15 @@ function count(text) {
   return [...text.replace(/https?:\/\/\S+/g, 'x'.repeat(23))].length;
 }
 
-async function waitForMedia(creds, id) {
-  for (let i = 0; i < 15; i++) {
+async function waitForMedia(creds, id, video) {
+  for (let i = 0; i < (video ? 90 : 15); i++) {
     const { data, status } = await request(`${base(creds)}/api/v1/media/${id}`, {
       headers: { Authorization: `Bearer ${creds.access_token}` },
     });
     if (status === 200 && data?.url) return;
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, video ? 2000 : 1000));
   }
-  throw new PublishError('Mastodon is still processing the image; will retry');
+  throw new PublishError('Mastodon is still processing the media; will retry');
 }
 
 export default {
@@ -27,6 +27,7 @@ export default {
   label: 'Mastodon',
   limit: 500,
   supportsImage: true,
+  supportsVideo: true,
   count,
   fields: [
     { key: 'instance', label: 'Instance', placeholder: 'mastodon.social' },
@@ -54,11 +55,13 @@ export default {
     const auth = { Authorization: `Bearer ${creds.access_token}` };
     const body = { status: post.text, visibility: creds.visibility || 'public' };
     if (post.image_url) {
-      const img = await fetchImage(post.image_url, 16_000_000);
+      const video = isVideoUrl(post.image_url);
+      // Most instances accept images up to 16 MB and videos up to about 100 MB.
+      const media = await fetchMedia(post.image_url, video ? 200_000_000 : 16_000_000);
       const form = new FormData();
-      form.append('file', new Blob([img.buf], { type: img.type }), 'image');
-      const { data, status } = await request(`${base(creds)}/api/v2/media`, { method: 'POST', headers: auth, body: form, timeoutMs: 60000 });
-      if (status === 202) await waitForMedia(creds, data.id);
+      form.append('file', new Blob([media.buf], { type: media.type }), video ? 'video' : 'image');
+      const { data, status } = await request(`${base(creds)}/api/v2/media`, { method: 'POST', headers: auth, body: form, timeoutMs: video ? 600000 : 60000 });
+      if (status === 202) await waitForMedia(creds, data.id, video);
       body.media_ids = [data.id];
     }
     const { data } = await request(`${base(creds)}/api/v1/statuses`, {

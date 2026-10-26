@@ -1,10 +1,11 @@
-import { request, PublishError } from './http.js';
+import fs from 'node:fs';
+import { request, requirePublicUrl, isVideoUrl, PublishError } from './http.js';
+import { localUpload } from '../uploads.js';
 import { config } from '../config.js';
 
 // Instagram Graph API (via Facebook Login): needs a Professional Instagram
 // account linked to a Facebook Page, and the Page's access token.
 const graph = () => `https://graph.facebook.com/${config.facebookGraphVersion}`;
-const isVideo = (url) => /\.(mp4|mov)(\?|#|$)/i.test(url);
 
 async function findAccount(creds) {
   if (creds.ig_user_id) return creds.ig_user_id;
@@ -40,6 +41,7 @@ export default {
   label: 'Instagram',
   limit: 2200,
   supportsImage: true,
+  supportsVideo: true,
   requiresImage: true,
   count: (t) => [...t].length,
   fields: [
@@ -61,16 +63,35 @@ export default {
     if (!post.image_url) throw new PublishError('Instagram posts need an image or video URL', { retryable: false });
     const token = creds.page_access_token;
     const igId = channel?.meta?.ig_user_id || (await findAccount(creds));
-    const video = isVideo(post.image_url);
+    const video = isVideoUrl(post.image_url);
+    const local = localUpload(post.image_url);
     const params = new URLSearchParams({ caption: post.text, access_token: token });
-    if (video) {
-      params.set('media_type', 'REELS');
-      params.set('video_url', post.image_url);
-    } else {
-      params.set('image_url', post.image_url);
-    }
     const form = { 'Content-Type': 'application/x-www-form-urlencoded' };
-    const { data: container } = await request(`${graph()}/${igId}/media`, { method: 'POST', headers: form, body: params.toString() });
+    let container;
+    if (video && local) {
+      // Reels from our own uploads use Instagram's resumable upload, sending
+      // the file directly, so they work even when Dispatch isn't public.
+      params.set('media_type', 'REELS');
+      params.set('upload_type', 'resumable');
+      ({ data: container } = await request(`${graph()}/${igId}/media`, { method: 'POST', headers: form, body: params.toString() }));
+      const uploadUrl = container.uri || `https://rupload.facebook.com/ig-api-upload/${config.facebookGraphVersion}/${container.id}`;
+      await request(uploadUrl, {
+        method: 'POST',
+        headers: { Authorization: `OAuth ${token}`, offset: '0', file_size: String(local.size) },
+        body: await fs.openAsBlob(local.path, { type: local.type }),
+        timeoutMs: 20 * 60_000,
+      });
+    } else {
+      // Photos (and Reels from other links) are downloaded by Instagram itself.
+      requirePublicUrl(post.image_url, 'Instagram');
+      if (video) {
+        params.set('media_type', 'REELS');
+        params.set('video_url', post.image_url);
+      } else {
+        params.set('image_url', post.image_url);
+      }
+      ({ data: container } = await request(`${graph()}/${igId}/media`, { method: 'POST', headers: form, body: params.toString() }));
+    }
     await waitUntilReady(container.id, token, video);
     const { data } = await request(`${graph()}/${igId}/media_publish`, {
       method: 'POST',

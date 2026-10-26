@@ -9,6 +9,7 @@ export const webhook = {
   label: 'Webhook (Make, Zapier, n8n…)',
   limit: 63206,
   supportsImage: true,
+  supportsVideo: true,
   count: (t) => [...t].length,
   fields: [
     { key: 'name', label: 'Name', placeholder: 'Instagram via Make' },
@@ -44,6 +45,7 @@ export const reminder = {
   label: 'Phone reminder (ntfy)',
   limit: 63206,
   supportsImage: true,
+  supportsVideo: true,
   count: (t) => [...t].length,
   fields: [
     { key: 'name', label: 'Name', placeholder: 'Instagram (post by hand)' },
@@ -70,6 +72,7 @@ export const test = {
   label: 'Test channel (no posting)',
   limit: 500,
   supportsImage: true,
+  supportsVideo: true,
   count: (t) => [...t].length,
   fields: [{ key: 'name', label: 'Name', placeholder: 'Test channel' }],
   async verify(creds) {

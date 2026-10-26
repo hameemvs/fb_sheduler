@@ -121,6 +121,26 @@ function countFor(network, text) {
 }
 
 const channelById = (id) => state.channels.find((c) => c.id === id);
+const isVideoUrl = (url) => /\.(mp4|mov)(\?|#|$)/i.test(url || '');
+
+// Upload with progress (fetch can't report upload progress).
+function uploadFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads');
+    xhr.setRequestHeader('X-Upload-Name', encodeURIComponent(file.name));
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data?.error || `Upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Upload failed: the connection dropped'));
+    xhr.send(file);
+  });
+}
 function netBadge(network, name) {
   return h('span', { class: 'badge', style: { '--net': NET_COLORS[network] || '#888' } }, h('span', { class: 'dot' }), name);
 }
@@ -243,7 +263,7 @@ function postCard(p, { showDate = false } = {}) {
     h('div', {},
       h('div', { class: 'meta' }, netBadge(p.network, p.channel_name), p.status !== 'scheduled' ? statusBadge(p.status) : null, p.source !== 'web' ? h('span', {}, `via ${p.source.toUpperCase()}`) : null),
       h('div', { class: 'text' }, p.text),
-      p.image_url ? h('img', { class: 'thumb', src: p.image_url, alt: 'Attached image', loading: 'lazy' }) : null,
+      p.image_url ? (isVideoUrl(p.image_url) ? h('video', { class: 'thumb', src: p.image_url, preload: 'metadata', muted: true, controls: true }) : h('img', { class: 'thumb', src: p.image_url, alt: 'Attached image', loading: 'lazy' })) : null,
       p.last_error && p.status !== 'published' ? h('div', { class: 'error' }, p.status === 'scheduled' ? `Retrying: ${p.last_error}` : p.last_error) : null),
     h('div', { class: 'actions' }, actions));
 }
@@ -490,8 +510,29 @@ function openComposer({ post, text = '', ideaId } = {}) {
   let mode = !editing ? 'queue' : post.status === 'draft' ? 'draft' : post.status === 'failed' ? 'queue' : post.queued ? 'keep' : 'schedule';
 
   const textarea = h('textarea', { id: 'compose-text', placeholder: 'What do you want to share?', value: editing ? post.text : text, oninput: update });
-  const image = h('input', { type: 'url', id: 'compose-image', placeholder: 'https://… (optional image URL)', value: editing ? post.image_url || '' : '', oninput: update });
-  const preview = h('img', { class: 'preview-img', alt: 'Image preview', hidden: true });
+  const image = h('input', { type: 'url', id: 'compose-image', placeholder: 'Upload a file, or paste a public image or video link', value: editing ? post.image_url || '' : '', oninput: update });
+  const preview = h('div', { class: 'preview' });
+  const progress = h('span', { class: 'help upload-status', 'aria-live': 'polite' });
+  const fileInput = h('input', { type: 'file', id: 'compose-file', accept: 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime', hidden: true, onchange: async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    uploadBtn.disabled = true;
+    try {
+      const r = await uploadFile(file, (f) => (progress.textContent = `Uploading ${file.name}… ${Math.round(f * 100)}%`));
+      image.value = r.url;
+      progress.textContent = `Uploaded ${file.name} (${r.size >= 1e6 ? `${(r.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(r.size / 1e3))} KB`})`;
+      if (r.warning) toast(r.warning);
+      update();
+    } catch (err) {
+      progress.textContent = '';
+      toast(err.message, true);
+    } finally {
+      uploadBtn.disabled = false;
+      fileInput.value = '';
+    }
+  } });
+  const uploadBtn = h('button', { class: 'btn', type: 'button', onclick: () => fileInput.click() }, 'Upload file');
+  const clearBtn = h('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Remove media', onclick: () => { image.value = ''; progress.textContent = ''; update(); } }, 'Remove');
   const counters = h('div', { class: 'counters', 'aria-live': 'polite' });
   const when = h('input', { type: 'datetime-local', id: 'compose-when', value: editing && post.scheduled_at ? toLocalInput(post.scheduled_at) : toLocalInput(new Date(Date.now() + 3600_000).toISOString()) });
   const whenWrap = h('label', { class: 'field' }, `Date and time (${tz()})`, when);
@@ -501,7 +542,7 @@ function openComposer({ post, text = '', ideaId } = {}) {
     chanChips.replaceChildren(...(editing ? [channelById(post.channel_id)] : active).map((c) => h('button', {
       class: `chip ${selected.has(c.id) ? 'on' : ''}`, 'aria-pressed': String(selected.has(c.id)), disabled: editing,
       onclick: () => { selected.has(c.id) ? selected.delete(c.id) : selected.add(c.id); drawChannels(); update(); },
-    }, `${c.name} · ${c.label.split(' ')[0]}`)));
+    }, c.name.toLowerCase() === c.label.split(' ')[0].toLowerCase() ? c.name : `${c.name} · ${c.label.split(' ')[0]}`)));
   }
 
   const modes = editing
@@ -519,10 +560,16 @@ function openComposer({ post, text = '', ideaId } = {}) {
     counters.replaceChildren(...chans.map((c) => {
       const n = countFor(c.network, t);
       return h('span', { class: `counter ${n > c.limit ? 'over' : ''}` }, `${c.name}: ${n}/${c.limit}`);
-    }), ...(!image.value && chans.some((c) => c.requiresImage) ? [h('span', { class: 'counter over' }, `${chans.filter((c) => c.requiresImage).map((c) => c.name).join(', ')} needs an image or video URL`)] : []),
-    ...(image.value && chans.some((c) => !c.supportsImage) ? [h('span', { class: 'counter over' }, `Images aren't supported on ${chans.filter((c) => !c.supportsImage).map((c) => c.label).join(', ')}`)] : []));
-    preview.hidden = !/^https?:\/\/.+/.test(image.value);
-    if (!preview.hidden) preview.src = image.value;
+    }), ...(!image.value && chans.some((c) => c.requiresImage) ? [h('span', { class: 'counter over' }, `${chans.filter((c) => c.requiresImage).map((c) => c.name).join(', ')} needs an image or video`)] : []));
+    const url = image.value.trim();
+    const video = isVideoUrl(url);
+    const textOnly = url ? chans.filter((c) => !(video ? c.supportsVideo : c.supportsImage)) : [];
+    if (textOnly.length) counters.append(h('span', { class: 'counter warn' }, `${textOnly.map((c) => c.name).join(', ')}: text only (no ${video ? 'video' : 'image'})`));
+    clearBtn.hidden = !url;
+    if (preview.dataset.src !== url) {
+      preview.dataset.src = url;
+      preview.replaceChildren(/^https?:\/\/.+/.test(url) ? (video ? h('video', { class: 'preview-img', src: url, controls: true, muted: true, preload: 'metadata' }) : h('img', { class: 'preview-img', src: url, alt: 'Image preview' })) : '');
+    }
   }
 
   // AI helpers (only when the server has an API key).
@@ -559,7 +606,10 @@ function openComposer({ post, text = '', ideaId } = {}) {
     h('div', { class: 'field' }, h('span', {}, 'Channels'), chanChips),
     aiBox,
     h('label', { class: 'field' }, 'Text', textarea, counters),
-    h('label', { class: 'field' }, 'Image', image, h('span', { class: 'help' }, 'Paste a public image URL (JPEG for Instagram), or an MP4 link to post an Instagram Reel. Supported on Facebook, Instagram, Bluesky, Mastodon, Threads, webhooks and reminders.'), preview),
+    h('div', { class: 'field' }, h('label', { for: 'compose-image' }, 'Image or video'),
+      h('div', { class: 'media-row' }, image, uploadBtn, clearBtn, fileInput), progress,
+      h('span', { class: 'help' }, 'JPEG, PNG, GIF, WebP, MP4 or MOV. Videos post to Facebook, Instagram (as Reels), Threads and Mastodon; images also to Bluesky. Instagram photos must be JPEG.'),
+      preview),
     h('div', { class: 'field' }, h('span', {}, 'When'), seg, whenWrap),
   ], (close) => [
     h('button', { class: 'btn', onclick: close }, 'Cancel'),

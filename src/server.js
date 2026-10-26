@@ -10,6 +10,7 @@ import { createMcpHandler } from './mcp.js';
 import { networkCatalog } from './publishers/index.js';
 import { hashPassword, verifyPassword, signToken, verifyToken } from './crypto.js';
 import { draftPost, rewritePost } from './ai.js';
+import { saveUpload, serveMedia, cleanupUploads } from './uploads.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, '..', 'public');
@@ -83,7 +84,7 @@ export function createApp({ db, svc, scheduler }) {
       'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'same-origin',
-      'Content-Security-Policy': "default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
     });
     fs.createReadStream(full).pipe(res);
   }
@@ -187,6 +188,20 @@ export function createApp({ db, svc, scheduler }) {
     const url = new URL(req.url, 'http://localhost');
     const { pathname } = url;
     try {
+      // ---------- uploaded media (public, unguessable names) ----------
+      if ((req.method === 'GET' || req.method === 'HEAD') && pathname.startsWith('/media/')) {
+        if (serveMedia(req, res, pathname.slice('/media/'.length))) return;
+        return send(res, 404, { error: 'Not found' });
+      }
+
+      // ---------- uploads: raw file body, name in X-Upload-Name ----------
+      // The custom header can't be sent by a cross-site form, which protects browser sessions.
+      if (pathname === '/api/uploads' && req.method === 'POST') {
+        if (!authenticate(req)) return send(res, 401, { error: 'Log in or send an API key' });
+        if (!req.headers['x-upload-name']) return send(res, 400, { error: 'Send the file name in an X-Upload-Name header' });
+        return send(res, 200, await saveUpload(db, req));
+      }
+
       // ---------- MCP (Streamable HTTP, JSON responses) ----------
       if (pathname === '/mcp') {
         if (req.method !== 'POST') return send(res, 405, { error: 'Use POST for MCP requests' }, { Allow: 'POST' });
@@ -241,6 +256,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (!getSetting(db, 'password_hash')) console.log('First run: open the app in your browser to set a password.');
   });
   scheduler.start();
+  cleanupUploads(db);
+  setInterval(() => cleanupUploads(db), 6 * 3600_000).unref();
   const shutdown = () => {
     console.log('Shutting down…');
     scheduler.stop();

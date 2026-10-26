@@ -6,6 +6,7 @@ Your own social media scheduler, in the spirit of Buffer. Write a post once, pic
 
 - **Queue and calendar.** Set posting times per channel. "Add to queue" takes the next free slot; you can also pick an exact time, post now, or save a draft.
 - **Real posting** to Facebook Pages, Instagram (photos and Reels), Bluesky, Mastodon, Threads, LinkedIn and X.
+- **Photos and videos.** Upload them in the editor, or paste a link. Videos go to Facebook, Instagram Reels, Threads and Mastodon.
 - **Everything else** (TikTok, Pinterest, YouTube) through a webhook to Make, Zapier or n8n, or as a phone reminder so you post it by hand.
 - **AI drafting** with Claude: draft a post from a sentence, or rewrite one to fit a network.
 - **Built for agents.** Claude Code, Claude Desktop, Cursor or n8n can list channels, draft, schedule and publish posts.
@@ -61,7 +62,24 @@ Open **Channels → Add channel**, pick the network and paste the details below.
 
 Each new channel gets a default schedule of weekdays at 9:00, 13:00 and 17:00. Change it on the channel card.
 
-**Images:** paste a public image URL in the editor. Supported on Facebook, Instagram, Bluesky (up to 1 MB), Mastodon, Threads, webhooks and reminders. X and LinkedIn posts are text only in this version.
+### Photos and videos
+
+In the editor, click **Upload file**, or paste a public link to an image or video. Accepted types are JPEG, PNG, GIF, WebP, MP4 and MOV, up to 1 GB (change it with `MAX_UPLOAD_MB`).
+
+| Network | Photos | Videos | Works while Dispatch runs only on your computer? |
+|---|---|---|---|
+| Facebook Page | ✅ | ✅ | ✅ Dispatch sends the file directly |
+| Instagram | ✅ JPEG only | ✅ as Reels | Reels ✅. Photos ❌ need a public address |
+| Threads | ✅ | ✅ | ❌ needs a public address |
+| Mastodon | ✅ | ✅ (most servers allow about 40–100 MB) | ✅ |
+| Bluesky | ✅ up to 1 MB | ❌ posts the text only | ✅ |
+| X, LinkedIn | ❌ posts the text only | ❌ posts the text only | n/a |
+
+**Why some networks need a public address:** Instagram photos and Threads don't accept files. They download the media from a link, so that link must be reachable from the internet. Run Dispatch on a server with a domain (see [Running it on a server](#running-it-on-a-server)) and set `PUBLIC_URL`. Until then, paste a link to media hosted elsewhere, such as a direct link from a Cloudflare R2 or S3 bucket.
+
+When one post goes to several networks and one of them can't take the media, that network gets the text only. The editor warns you before you schedule.
+
+Uploaded files are served at `/media/<random name>` so the networks can fetch them. The names are random and can't be guessed. Files that no post uses are deleted after 7 days.
 
 ### Connecting a Facebook Page
 
@@ -180,6 +198,7 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
 | `GET /api/posts?status=scheduled&channel_id=&from=&to=` | List posts |
 | `POST /api/posts` | Create: `text`, `channel_ids`, `mode` (`queue` · `schedule` · `now` · `draft`), `scheduled_at`, `image_url` |
 | `PATCH /api/posts/:id` | Edit: `text`, `image_url`, `scheduled_at`, `mode` |
+| `POST /api/uploads` | Upload a file: send the raw bytes, with headers `X-Upload-Name: clip.mp4` and `Content-Type`. Returns `{ url }` to use as `image_url`. |
 | `POST /api/posts/:id/publish` | Publish now |
 | `DELETE /api/posts/:id` | Delete |
 | `GET/POST /api/ideas`, `DELETE /api/ideas/:id` | Ideas |
@@ -222,6 +241,7 @@ Dispatch only posts while it's running, so for posts to go out while your laptop
 | LinkedIn or Threads posts start failing after about two months | Their tokens expire after 60 days. Get a new token, remove the channel and add it again. |
 | Facebook says "(#200) … pages_manage_posts" | The token is missing a permission or is a user token. Use the Page `access_token` from `me/accounts`, not the token from step 2. |
 | "This Facebook Page has no linked Instagram Professional account" | Switch the Instagram account to Professional and link it to the same Page (Instagram step 1), then generate the token again. |
+| "… downloads media from a public URL, but this file is on a local address" | Instagram photos and Threads can't reach Dispatch on your computer. Run it on a server and set `PUBLIC_URL`, or paste a public media link. |
 | Instagram says it "could not process the media" | Use a JPEG image (not PNG or WebP) or an MP4/MOV video, at a public URL. |
 | X returns 403 when posting | The access token was generated before you set Read and Write. Regenerate it. |
 | LinkedIn returns 426 or an error about the version | Set `LINKEDIN_VERSION` in `.env` to a recent month, e.g. `202609`, and restart. |

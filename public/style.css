@@ -140,6 +140,14 @@ label.field { display: grid; gap: 4px; font-weight: 500; font-size: 14px; }
 .counters { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
 .counter { font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
 .counter.over { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+.counter.warn { background: var(--warn-soft); color: var(--warn); }
+.media-row { display: flex; gap: 8px; align-items: center; }
+.media-row input { flex: 1; min-width: 0; }
+.preview:empty { display: none; }
+.upload-status { display: block; }
+.upload-status:empty { display: none; }
+video.thumb, video.preview-img { background: #000; }
+.preview-img { max-width: 280px; max-height: 200px; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-wrap: wrap; }
 .seg button { border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; font-weight: 500; }
 .seg button + button { border-left: 1px solid var(--line); }

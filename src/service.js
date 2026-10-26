@@ -4,12 +4,9 @@ import { getPublisher, channelLimit, countChars } from './publishers/index.js';
 import { nextSlot, isValidTimezone } from './time.js';
 import { config } from './config.js';
 
-export class AppError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
+import { AppError } from './errors.js';
+
+export { AppError };
 
 const MODES = ['queue', 'schedule', 'now', 'draft'];
 
@@ -29,6 +26,7 @@ function parseChannel(row, withCreds = false) {
   };
   channel.limit = channelLimit(channel);
   channel.supportsImage = getPublisher(row.network).supportsImage;
+  channel.supportsVideo = Boolean(getPublisher(row.network).supportsVideo);
   channel.requiresImage = Boolean(getPublisher(row.network).requiresImage);
   if (withCreds) channel.credentials = decrypt(row.credentials);
   return channel;

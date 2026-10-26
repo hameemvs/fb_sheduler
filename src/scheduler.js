@@ -1,4 +1,5 @@
 import { getPublisher } from './publishers/index.js';
+import { isVideoUrl } from './uploads.js';
 import { config } from './config.js';
 
 // Publishes due posts. A post is claimed by moving it from "scheduled" to
@@ -22,7 +23,16 @@ export function createScheduler(db, svc) {
     const at = new Date().toISOString();
     try {
       if (!channel.active) throw Object.assign(new Error('Channel is paused'), { retryable: false });
-      const result = await publisher.publish(channel.credentials, post, channel);
+      // Networks that can't take this kind of media get the text only.
+      let toSend = post;
+      if (post.image_url) {
+        const video = isVideoUrl(post.image_url);
+        if (!(video ? publisher.supportsVideo : publisher.supportsImage)) {
+          toSend = { ...post, image_url: null };
+          svc.log(id, 'info', `${publisher.label} can't post ${video ? 'videos' : 'images'} through Dispatch, so this was posted as text only`);
+        }
+      }
+      const result = await publisher.publish(channel.credentials, toSend, channel);
       db.prepare(
         "UPDATE posts SET status = 'published', published_at = ?, remote_id = ?, remote_url = ?, last_error = NULL, updated_at = ? WHERE id = ?"
       ).run(at, result?.id || null, result?.url || null, at, id);

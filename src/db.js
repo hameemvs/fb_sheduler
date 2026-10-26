@@ -61,6 +61,14 @@ export function openDb(file = config.dbPath) {
       last_used_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS uploads (
+      name TEXT PRIMARY KEY,
+      original_name TEXT,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       post_id TEXT,

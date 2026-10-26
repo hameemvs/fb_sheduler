@@ -11,6 +11,7 @@ export default {
   label: 'LinkedIn',
   limit: 3000,
   supportsImage: false,
+  supportsVideo: false,
   count: (t) => [...t].length,
   fields: [
     {

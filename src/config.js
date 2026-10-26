@@ -32,6 +32,7 @@ export const config = {
   secureCookies: env.SECURE_COOKIES === 'true',
   linkedinVersion: env.LINKEDIN_VERSION || '202509',
   facebookGraphVersion: env.FACEBOOK_GRAPH_VERSION || 'v23.0',
+  maxUploadMb: Number(env.MAX_UPLOAD_MB || 1024),
   ai: {
     enabled: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
     model: env.ANTHROPIC_MODEL || 'claude-opus-5-5',

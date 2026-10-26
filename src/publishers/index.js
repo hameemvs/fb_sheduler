@@ -22,6 +22,7 @@ export function networkCatalog() {
     label: p.label,
     limit: p.limit,
     supportsImage: p.supportsImage,
+    supportsVideo: Boolean(p.supportsVideo),
     requiresImage: Boolean(p.requiresImage),
     fields: p.fields,
   }));

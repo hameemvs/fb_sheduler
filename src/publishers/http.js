@@ -1,3 +1,8 @@
+import fs from 'node:fs';
+import { localUpload, isPrivateHost } from '../uploads.js';
+
+export { isVideoUrl } from '../uploads.js';
+
 export class PublishError extends Error {
   constructor(message, { status, retryable = true } = {}) {
     super(message);
@@ -39,22 +44,40 @@ export async function request(url, { method = 'GET', headers = {}, json, body, t
   return { data, headers: res.headers, status: res.status };
 }
 
-// Download an image the user referenced by URL, for networks that need an upload.
-export async function fetchImage(url, maxBytes) {
+// Get the bytes of an image or video, for networks that need an upload.
+// Our own uploads are read from disk; anything else is downloaded.
+export async function fetchMedia(url, maxBytes) {
+  const local = localUpload(url);
+  if (local) {
+    if (maxBytes && local.size > maxBytes) {
+      throw new PublishError(`File is ${(local.size / 1e6).toFixed(1)} MB; this network allows ${(maxBytes / 1e6).toFixed(1)} MB`, { retryable: false });
+    }
+    return { buf: fs.readFileSync(local.path), type: local.type };
+  }
   let res;
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(30000) });
   } catch (err) {
-    throw new PublishError(`Could not download image: ${err.message}`, { retryable: true });
+    throw new PublishError(`Could not download the media: ${err.message}`, { retryable: true });
   }
-  if (!res.ok) throw new PublishError(`Could not download image: HTTP ${res.status}`, { status: res.status });
+  if (!res.ok) throw new PublishError(`Could not download the media: HTTP ${res.status}`, { status: res.status });
   const type = res.headers.get('content-type') || 'application/octet-stream';
-  if (!type.startsWith('image/')) throw new PublishError(`Image URL did not return an image (got ${type})`, { retryable: false });
+  if (!type.startsWith('image/') && !type.startsWith('video/')) throw new PublishError(`The media URL did not return an image or video (got ${type})`, { retryable: false });
   const buf = Buffer.from(await res.arrayBuffer());
   if (maxBytes && buf.length > maxBytes) {
-    throw new PublishError(`Image is ${(buf.length / 1e6).toFixed(2)} MB; this network allows ${(maxBytes / 1e6).toFixed(2)} MB`, { retryable: false });
+    throw new PublishError(`File is ${(buf.length / 1e6).toFixed(1)} MB; this network allows ${(maxBytes / 1e6).toFixed(1)} MB`, { retryable: false });
   }
   return { buf, type };
+}
+
+// Networks that download media themselves can't reach a local address.
+export function requirePublicUrl(url, label) {
+  if (isPrivateHost(new URL(url).hostname)) {
+    throw new PublishError(
+      `${label} downloads media from a public URL, but this file is on a local address (${new URL(url).host}). Run Dispatch on a server with a public address and set PUBLIC_URL, or paste a public link instead.`,
+      { retryable: false }
+    );
+  }
 }
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });

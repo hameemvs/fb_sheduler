@@ -1,4 +1,4 @@
-import { request, fetchImage, graphemeLength, URL_RE, PublishError } from './http.js';
+import { request, fetchMedia, graphemeLength, URL_RE, PublishError } from './http.js';
 
 const MAX_IMAGE_BYTES = 1_000_000;
 
@@ -58,6 +58,7 @@ export default {
   label: 'Bluesky',
   limit: 300,
   supportsImage: true,
+  supportsVideo: false,
   count: graphemeLength,
   fields: [
     { key: 'handle', label: 'Handle', placeholder: 'you.bsky.social' },
@@ -80,7 +81,7 @@ export default {
     const facets = [...buildFacets(post.text), ...(await mentionFacets(post.text, service(creds)))];
     if (facets.length) record.facets = facets;
     if (post.image_url) {
-      const img = await fetchImage(post.image_url, MAX_IMAGE_BYTES);
+      const img = await fetchMedia(post.image_url, MAX_IMAGE_BYTES);
       const { data } = await request(`${service(creds)}/xrpc/com.atproto.repo.uploadBlob`, {
         method: 'POST',
         headers: { ...auth, 'Content-Type': img.type },
