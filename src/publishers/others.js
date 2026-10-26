@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { request } from './http.js';
 
 // Sends the post to Make, Zapier, n8n or your own endpoint. This is the way to
-// reach Instagram, Facebook, TikTok, Pinterest or YouTube, whose posting APIs
+// reach Instagram, TikTok, Pinterest or YouTube, whose posting APIs
 // need app review: let an automation tool that already has that access post it.
 export const webhook = {
   network: 'webhook',

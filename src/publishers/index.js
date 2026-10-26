@@ -3,9 +3,10 @@ import mastodon from './mastodon.js';
 import x from './x.js';
 import linkedin from './linkedin.js';
 import threads from './threads.js';
+import facebook from './facebook.js';
 import { webhook, reminder, test } from './others.js';
 
-export const publishers = Object.fromEntries([bluesky, mastodon, threads, linkedin, x, webhook, reminder, test].map((p) => [p.network, p]));
+export const publishers = Object.fromEntries([facebook, bluesky, mastodon, threads, linkedin, x, webhook, reminder, test].map((p) => [p.network, p]));
 
 export function getPublisher(network) {
   const p = publishers[network];
