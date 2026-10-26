@@ -1,0 +1,23 @@
+{
+  "name": "dispatch",
+  "version": "1.0.0",
+  "description": "Self-hosted social media scheduler with a queue, calendar, AI drafting, a REST API and an MCP server for AI agents.",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "dispatch-mcp": "bin/dispatch-mcp.js"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning src/server.js",
+    "dev": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning --watch src/server.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js",
+    "mcp": "node bin/dispatch-mcp.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0"
+  }
+}
