@@ -5,8 +5,8 @@ Your own social media scheduler, in the spirit of Buffer. Write a post once, pic
 ![The Dispatch queue](docs/screenshot.png)
 
 - **Queue and calendar.** Set posting times per channel. "Add to queue" takes the next free slot; you can also pick an exact time, post now, or save a draft.
-- **Real posting** to Facebook Pages, Bluesky, Mastodon, Threads, LinkedIn and X.
-- **Everything else** (Instagram, TikTok, Pinterest, YouTube) through a webhook to Make, Zapier or n8n, or as a phone reminder so you post it by hand.
+- **Real posting** to Facebook Pages, Instagram (photos and Reels), Bluesky, Mastodon, Threads, LinkedIn and X.
+- **Everything else** (TikTok, Pinterest, YouTube) through a webhook to Make, Zapier or n8n, or as a phone reminder so you post it by hand.
 - **AI drafting** with Claude: draft a post from a sentence, or rewrite one to fit a network.
 - **Built for agents.** Claude Code, Claude Desktop, Cursor or n8n can list channels, draft, schedule and publish posts.
 - **Yours.** One small Node app with a SQLite file. No accounts, no tracking. Channel passwords and tokens are encrypted on disk.
@@ -50,17 +50,18 @@ Open **Channels → Add channel**, pick the network and paste the details below.
 | Network | What you need | Time |
 |---|---|---|
 | **Facebook Page** | Your Page ID and a Page access token from your own Meta developer app. Step by step: [Connecting a Facebook Page](#connecting-a-facebook-page). | 10 min |
+| **Instagram** | A Professional (Business or Creator) account linked to a Facebook Page, plus that Page's ID and token. Step by step: [Connecting Instagram](#connecting-instagram). | 5 min after Facebook |
 | **Bluesky** | Your handle and an **app password** (Bluesky → Settings → Privacy and security → App passwords). | 1 min |
 | **Mastodon** | Your instance (e.g. `mastodon.social`) and an access token: Preferences → Development → New application, tick `write:statuses` and `write:media`, save, then copy "Your access token". | 2 min |
 | **Threads** | A long-lived user access token from a [Meta developer app](https://developers.facebook.com/docs/threads/get-started) with `threads_basic` and `threads_content_publish`. Tokens last 60 days. | 15 min |
 | **LinkedIn** | An access token from a [LinkedIn developer app](https://www.linkedin.com/developers/apps) with the "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect" products (scopes `openid profile w_member_social`). Tokens last 60 days. For a company page, add its `urn:li:organization:…` (needs `w_organization_social`). | 15 min |
 | **X (Twitter)** | From [developer.x.com](https://developer.x.com): the API key and secret, plus an access token and secret generated **after** setting the app to Read and Write. Posting through the API may need a paid X API plan. | 10 min |
-| **Webhook** | A webhook URL from Make, Zapier, n8n or your own server. Dispatch POSTs `{ text, image_url, channel, scheduled_at }` at posting time. Use this to reach Instagram, TikTok, Pinterest or YouTube through an automation tool that already has access. | 5 min |
+| **Webhook** | A webhook URL from Make, Zapier, n8n or your own server. Dispatch POSTs `{ text, image_url, channel, scheduled_at }` at posting time. Use this to reach TikTok, Pinterest or YouTube through an automation tool that already has access. | 5 min |
 | **Phone reminder** | Install the [ntfy](https://ntfy.sh) app and subscribe to a hard-to-guess topic. At posting time you get the text (and image) on your phone and post it by hand. | 2 min |
 
 Each new channel gets a default schedule of weekdays at 9:00, 13:00 and 17:00. Change it on the channel card.
 
-**Images:** paste a public image URL in the editor. Supported on Facebook, Bluesky (up to 1 MB), Mastodon, Threads, webhooks and reminders. X and LinkedIn posts are text only in this version.
+**Images:** paste a public image URL in the editor. Supported on Facebook, Instagram, Bluesky (up to 1 MB), Mastodon, Threads, webhooks and reminders. X and LinkedIn posts are text only in this version.
 
 ### Connecting a Facebook Page
 
@@ -74,6 +75,22 @@ You post through your own Meta developer app. Because you are the app's admin an
 6. **Make the app Live.** In the app dashboard, switch **App Mode** from Development to **Live**. Meta asks for a privacy policy URL and a category first. While the app is in Development mode, posts it publishes may be visible only to you.
 
 If posting later fails with an "Invalid OAuth access token" error, you changed your Facebook password or removed the app's access: repeat steps 2 to 5.
+
+### Connecting Instagram
+
+Instagram uses the same Meta app and Page token as Facebook.
+
+1. **Use a Professional account linked to your Page.** In the Instagram app: **Settings → Account type and tools → Switch to professional account** (Business or Creator). Then link it to your Facebook Page: Instagram **Settings → Accounts Center**, or Meta Business Suite → **Settings → Instagram accounts**.
+2. **Add the Instagram permissions to your app.** In your app dashboard, add the use case for Instagram (**Manage messaging & content on Instagram**, the version *with Facebook Login*). If you skip this, the permissions in the next step won't be listed.
+3. **Generate the token again** in the [Graph API Explorer](https://developers.facebook.com/tools/explorer/), as in the Facebook steps 2 to 4, but this time add `instagram_basic` and `instagram_content_publish` as well. When asked, tick both your Page and your Instagram account.
+4. **Add it to Dispatch.** Go to **Channels → Add channel → Instagram** and paste the same **Page ID** and the new **Page access token**. Dispatch finds the linked Instagram account by itself and shows its @username. Paste the new token into your Facebook channel too (remove it and add it again).
+
+**What Instagram allows:**
+- Every post needs media. Paste a **JPEG** image URL, or an **MP4/MOV** link to post a **Reel**. PNG and text-only posts are rejected by Instagram.
+- Captions can be up to 2,200 characters, with at most 30 hashtags.
+- The media URL must be publicly reachable, because Instagram downloads it at posting time.
+- Instagram allows up to 100 posts per account per day through the API.
+- Carousels and Stories aren't supported in this version.
 
 ---
 
@@ -204,6 +221,8 @@ Dispatch only posts while it's running, so for posts to go out while your laptop
 | "Could not connect to Bluesky: …401" | Use an app password, not your main password, and your full handle (`name.bsky.social`). |
 | LinkedIn or Threads posts start failing after about two months | Their tokens expire after 60 days. Get a new token, remove the channel and add it again. |
 | Facebook says "(#200) … pages_manage_posts" | The token is missing a permission or is a user token. Use the Page `access_token` from `me/accounts`, not the token from step 2. |
+| "This Facebook Page has no linked Instagram Professional account" | Switch the Instagram account to Professional and link it to the same Page (Instagram step 1), then generate the token again. |
+| Instagram says it "could not process the media" | Use a JPEG image (not PNG or WebP) or an MP4/MOV video, at a public URL. |
 | X returns 403 when posting | The access token was generated before you set Read and Write. Regenerate it. |
 | LinkedIn returns 426 or an error about the version | Set `LINKEDIN_VERSION` in `.env` to a recent month, e.g. `202609`, and restart. |
 | Posts didn't go out overnight | Dispatch must be running at posting time. Run it on a server (see above). |

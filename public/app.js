@@ -61,7 +61,7 @@ async function guard(btn, fn) {
 }
 
 const tz = () => state.settings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-const NET_COLORS = { facebook: '#1877f2', bluesky: '#1185fe', mastodon: '#6364ff', threads: '#888', linkedin: '#0a66c2', x: '#666', webhook: '#c2410c', reminder: '#15803d', test: '#9ca3af' };
+const NET_COLORS = { facebook: '#1877f2', instagram: '#d62976', bluesky: '#1185fe', mastodon: '#6364ff', threads: '#888', linkedin: '#0a66c2', x: '#666', webhook: '#c2410c', reminder: '#15803d', test: '#9ca3af' };
 
 function parts(date, zone = tz()) {
   const out = {};
@@ -402,7 +402,7 @@ function openAddChannel() {
       def.fields.map((f) => h('label', { class: 'field' }, f.label,
         h('input', { type: f.secret ? 'password' : 'text', id: `f-${f.key}`, placeholder: f.placeholder || '', autocomplete: 'off', value: values[f.key] || '', oninput: (e) => (values[f.key] = e.target.value) }),
         f.help ? h('span', { class: 'help' }, f.help) : null)),
-      ['webhook', 'reminder'].includes(network) ? h('p', { class: 'help' }, 'Use this for Instagram, TikTok, Pinterest or YouTube: their posting APIs need app review, so either let an automation tool post for you (webhook) or get a phone reminder and post by hand.') : null,
+      ['webhook', 'reminder'].includes(network) ? h('p', { class: 'help' }, 'Use this for TikTok, Pinterest or YouTube: their posting APIs need app review, so either let an automation tool post for you (webhook) or get a phone reminder and post by hand.') : null,
     ].flat().filter(Boolean));
   };
   draw();
@@ -519,7 +519,8 @@ function openComposer({ post, text = '', ideaId } = {}) {
     counters.replaceChildren(...chans.map((c) => {
       const n = countFor(c.network, t);
       return h('span', { class: `counter ${n > c.limit ? 'over' : ''}` }, `${c.name}: ${n}/${c.limit}`);
-    }), ...(image.value && chans.some((c) => !c.supportsImage) ? [h('span', { class: 'counter over' }, `Images aren't supported on ${chans.filter((c) => !c.supportsImage).map((c) => c.label).join(', ')}`)] : []));
+    }), ...(!image.value && chans.some((c) => c.requiresImage) ? [h('span', { class: 'counter over' }, `${chans.filter((c) => c.requiresImage).map((c) => c.name).join(', ')} needs an image or video URL`)] : []),
+    ...(image.value && chans.some((c) => !c.supportsImage) ? [h('span', { class: 'counter over' }, `Images aren't supported on ${chans.filter((c) => !c.supportsImage).map((c) => c.label).join(', ')}`)] : []));
     preview.hidden = !/^https?:\/\/.+/.test(image.value);
     if (!preview.hidden) preview.src = image.value;
   }
@@ -558,7 +559,7 @@ function openComposer({ post, text = '', ideaId } = {}) {
     h('div', { class: 'field' }, h('span', {}, 'Channels'), chanChips),
     aiBox,
     h('label', { class: 'field' }, 'Text', textarea, counters),
-    h('label', { class: 'field' }, 'Image', image, h('span', { class: 'help' }, 'Paste a public image URL. Supported on Facebook, Bluesky, Mastodon, Threads, webhooks and reminders.'), preview),
+    h('label', { class: 'field' }, 'Image', image, h('span', { class: 'help' }, 'Paste a public image URL (JPEG for Instagram), or an MP4 link to post an Instagram Reel. Supported on Facebook, Instagram, Bluesky, Mastodon, Threads, webhooks and reminders.'), preview),
     h('div', { class: 'field' }, h('span', {}, 'When'), seg, whenWrap),
   ], (close) => [
     h('button', { class: 'btn', onclick: close }, 'Cancel'),

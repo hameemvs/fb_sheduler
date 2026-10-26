@@ -36,7 +36,7 @@ function tools(svc, scheduler) {
           channel_ids: { type: 'array', items: { type: 'string' }, minItems: 1, description: 'Channel ids from list_channels.' },
           mode: { type: 'string', enum: ['queue', 'schedule', 'draft', 'now'], default: 'queue' },
           scheduled_at: { type: 'string', description: 'ISO 8601 time, required when mode is "schedule".' },
-          image_url: { type: 'string', description: 'Optional public image URL (not supported on X or LinkedIn).' },
+          image_url: { type: 'string', description: 'Public image URL (JPEG for Instagram) or MP4/MOV video URL for an Instagram Reel. Required for Instagram channels; not supported on X or LinkedIn.' },
         },
         required: ['text', 'channel_ids'],
         additionalProperties: false,

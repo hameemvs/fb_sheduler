@@ -4,9 +4,10 @@ import x from './x.js';
 import linkedin from './linkedin.js';
 import threads from './threads.js';
 import facebook from './facebook.js';
+import instagram from './instagram.js';
 import { webhook, reminder, test } from './others.js';
 
-export const publishers = Object.fromEntries([facebook, bluesky, mastodon, threads, linkedin, x, webhook, reminder, test].map((p) => [p.network, p]));
+export const publishers = Object.fromEntries([facebook, instagram, bluesky, mastodon, threads, linkedin, x, webhook, reminder, test].map((p) => [p.network, p]));
 
 export function getPublisher(network) {
   const p = publishers[network];
@@ -21,6 +22,7 @@ export function networkCatalog() {
     label: p.label,
     limit: p.limit,
     supportsImage: p.supportsImage,
+    requiresImage: Boolean(p.requiresImage),
     fields: p.fields,
   }));
 }

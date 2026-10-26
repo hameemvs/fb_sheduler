@@ -29,6 +29,7 @@ function parseChannel(row, withCreds = false) {
   };
   channel.limit = channelLimit(channel);
   channel.supportsImage = getPublisher(row.network).supportsImage;
+  channel.requiresImage = Boolean(getPublisher(row.network).requiresImage);
   if (withCreds) channel.credentials = decrypt(row.credentials);
   return channel;
 }
@@ -140,9 +141,10 @@ export function createService(db) {
       const ch = svc.getChannel(channelId);
       return nextSlot(ch.schedule, svc.timezone(), svc.takenSlots(channelId));
     },
-    checkLength(channel, text) {
+    checkLength(channel, text, imageUrl) {
       const used = countChars(channel, text);
       if (used > channel.limit) throw new AppError(400, `Too long for ${channel.name} (${channel.label}): ${used}/${channel.limit} characters`);
+      if (channel.requiresImage && !imageUrl) throw new AppError(400, `${channel.label} posts need an image or video URL (${channel.name})`);
     },
     createPosts({ text, channel_ids, mode = 'queue', scheduled_at, image_url, source = 'web' }) {
       text = String(text ?? '').trim();
@@ -158,7 +160,7 @@ export function createService(db) {
         }
       }
       const channels = ids.map((id) => svc.getChannel(id));
-      if (mode !== 'draft') channels.forEach((ch) => svc.checkLength(ch, text));
+      if (mode !== 'draft') channels.forEach((ch) => svc.checkLength(ch, text, image_url));
       let fixedTime = null;
       if (mode === 'schedule') {
         if (!scheduled_at) throw new AppError(400, 'scheduled_at is required when mode is "schedule"');
@@ -246,7 +248,8 @@ export function createService(db) {
         queued = 0;
       }
       if (status === 'scheduled' && !when) throw new AppError(400, 'Pick a time or add the post to the queue');
-      if (status !== 'draft') svc.checkLength(ch, nextText);
+      const nextImage = image_url !== undefined ? image_url || null : post.image_url;
+      if (status !== 'draft') svc.checkLength(ch, nextText, nextImage);
       db.prepare(
         'UPDATE posts SET text = ?, image_url = ?, status = ?, scheduled_at = ?, queued = ?, attempts = CASE WHEN ? = \'scheduled\' AND status = \'failed\' THEN 0 ELSE attempts END, last_error = CASE WHEN ? = \'scheduled\' THEN NULL ELSE last_error END, updated_at = ? WHERE id = ?'
       ).run(nextText, image_url !== undefined ? image_url || null : post.image_url, status, when, queued, status, status, now(), id);
